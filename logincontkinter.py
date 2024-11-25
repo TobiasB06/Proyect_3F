@@ -1,4 +1,6 @@
 import tkinter as tk
+from tkinter import messagebox
+import subprocess
 from PIL import Image, ImageTk
 
 class LoginApp:
@@ -16,6 +18,15 @@ class LoginApp:
         self.marco.pack(expand=True, fill="both")
 
         self.crear_interfaz()
+    def verificar_credenciales(self):
+        usuario = self.entry_usuario.get()  # Obtener el texto del campo "Usuario"
+        contrasena = self.entry_contrasena.get()  # Obtener el texto del campo "Contraseña"
+
+        if usuario == self.usuario_correcto and contrasena == self.contrasena_correcta:
+            self.root.destroy()
+            subprocess.run(["python", "menutkinter.py"]) # Lo manda al menu
+        else:
+            messagebox.showerror("Error", "Usuario o contraseña incorrectos.")
 
     def crear_interfaz(self):
         # Logo "3F"
@@ -31,6 +42,9 @@ class LoginApp:
         titulo = tk.Label(self.marco, text="Inicio de sesión", font=("Arial", 22, "bold"),
                           fg=self.color_blanco, bg=self.color_azul)
         titulo.pack(pady=(0, 5))
+        
+        self.usuario_correcto = "admin"
+        self.contrasena_correcta = "3Febrero"
 
         subtitulo = tk.Label(self.marco, text="Municipalidad Tres de Febrero", font=("Arial", 12),
                              fg=self.color_blanco, bg=self.color_azul)
@@ -42,27 +56,29 @@ class LoginApp:
 
         # Botón "Iniciar Sesión"
         boton_login = tk.Button(self.marco, text="Iniciar Sesión", font=("Arial", 14),
-                                bg=self.color_naranja, fg=self.color_blanco, width=22, height=1, bd=0, relief="flat")
+                        bg=self.color_naranja, fg=self.color_blanco, width=22, height=1, bd=0, relief="flat",
+                        command=self.verificar_credenciales)
         boton_login.pack(pady=(100, 0))
 
     def crear_campo(self, placeholder, es_contraseña=False):
         frame = tk.Frame(self.marco, bg=self.color_azul)
         frame.pack(pady=(0, 5), padx=20)
 
-        # Campo de entrada
-        entry = tk.Entry(frame, font=("Arial", 14), width=25,bd=0, fg="#a9a9a9", bg=self.color_azul)
+        entry = tk.Entry(frame, font=("Arial", 14), width=25, bd=0, fg="#a9a9a9", bg=self.color_azul)
         entry.insert(0, placeholder)
         entry.bind("<FocusIn>", lambda event: self.on_entry_click(event, entry, placeholder))
         entry.bind("<FocusOut>", lambda event: self.on_focusout(event, entry, placeholder))
         if es_contraseña:
             tk.Label(frame, text="🔒", font=("Arial", 14), fg=self.color_blanco, bg=self.color_azul).pack(side="left")
             entry.config(show="*")
+            self.entry_contrasena = entry  # Guardar referencia del campo de contraseña
         else:
             tk.Label(frame, text="👤", font=("Arial", 14), fg=self.color_blanco, bg=self.color_azul).pack(side="left")
+            self.entry_usuario = entry  # Guardar referencia del campo de usuario
         entry.pack(side="left", padx=5)
 
         # Renglón debajo del campo
-        renglon = tk.Frame(self.marco, height=1, width=entry.winfo_reqwidth()+ 22, bg=self.color_blanco)
+        renglon = tk.Frame(self.marco, height=1, width=entry.winfo_reqwidth() + 22, bg=self.color_blanco)
         renglon.pack(pady=(0, 10))
 
     def on_entry_click(self, event, entry, placeholder):

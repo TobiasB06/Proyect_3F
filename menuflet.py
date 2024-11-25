@@ -1,5 +1,6 @@
 import flet as ft
 import datetime
+import mysql.connector
 class Aplicacion:
     def __init__(self, ventana2: ft.Page):
         self.ventana2 = ventana2
@@ -92,8 +93,45 @@ class Aplicacion:
         self.contenido_principal.content = ft.Text("Bienvenido al menú", color=ft.colors.WHITE)
         self.ventana2.update()
     def handle_change(self,e):
-        self.fecha_seleccionada = e.control.value.strftime('%d/%m/%Y')
-        
+        self.fecha_seleccionada = e.control.value.strftime('%Y-%m-%d')
+    def conectar_db(self):
+        try:
+            # Establecer conexión con la base de datos MySQL
+            self.cnx = mysql.connector.connect(
+                host="localhost",        
+                user="root",          
+                database="municipalidad"
+            )
+            self.cursor = self.cnx.cursor()
+        except mysql.connector.Error as e:
+            print(f"Error de conexión a MySQL: {e}")
+            return None
+    def obtener_registros_mysql(self):
+        self.conectar_db()
+        if self.cursor:
+            try:
+                self.cursor.execute("SELECT FECHA, DIRECCION, EXPEDIENTE, MOTIVO, ETIQUETA FROM consultas")
+                registros = self.cursor.fetchall()
+                self.agregar_filas_a_tabla(self.data_table, registros)
+                self.cursor.close()
+                self.cnx.close()
+            except mysql.connector.Error as e:
+                print(f"Error al obtener los registros: {e}")
+    def agregar_filas_a_tabla(self,data_table, registros):
+        for registro in registros:
+            # Asegúrate de que cada registro tenga el formato correcto
+            nueva_fila = ft.DataRow(
+                cells=[
+                    ft.DataCell(ft.Checkbox()),
+                    ft.DataCell(ft.Text(str(registro[0]))),  # Fecha
+                    ft.DataCell(ft.Text(str(registro[1]))),  # Dirección
+                    ft.DataCell(ft.Text(str(registro[2]))),  # Expediente
+                    ft.DataCell(ft.Text(str(registro[3]))),  # Motivo
+                    ft.DataCell(ft.Text(str(registro[4]))),  # Etiqueta
+                ]
+            )
+            data_table.rows.append(nueva_fila)
+        data_table.update()  # Actualizar la tabla
     def mostrar_carga(self, e):
         self.fecha = ft.ElevatedButton(
             "Elegir Fecha",
@@ -200,10 +238,12 @@ class Aplicacion:
 
         self.data_table = ft.DataTable(
             border=ft.border.all(1, "WHITE"),
+            show_bottom_border=True,
             border_radius=10,
-            horizontal_lines=ft.BorderSide(1,"WHITE"),
+            horizontal_lines=ft.BorderSide(1, "WHITE"),
             data_text_style=ft.TextStyle(color=ft.colors.WHITE),
             columns=[
+                ft.DataColumn(label=ft.Text("", color=ft.colors.WHITE)),
                 ft.DataColumn(label=ft.Text("Fecha", color=ft.colors.WHITE)),
                 ft.DataColumn(label=ft.Text("Direccion", color=ft.colors.WHITE)),
                 ft.DataColumn(label=ft.Text("Expediente", color=ft.colors.WHITE)),
@@ -211,9 +251,17 @@ class Aplicacion:
                 ft.DataColumn(label=ft.Text("#Etiqueta", color=ft.colors.WHITE)),
             ],
             expand=True,  # Permite que el DataTable ocupe todo el espacio disponible
-            
         )
 
+        # Crear el ListView
+        lv = ft.ListView(
+            expand=1, 
+            spacing=10, 
+            padding=20, 
+        )
+        lv.controls.append(self.data_table)
+
+        # Crear el contenedor principal
         contenido_principal = ft.Container(
             bgcolor="#323d6b",
             expand=True,
@@ -224,10 +272,10 @@ class Aplicacion:
                             ft.Column(
                                 controls=[
                                     ft.Row(
-                                        controls=[self.fecha, self.direccion, self.expediente, self.motivo,self.etiqueta],
+                                        controls=[self.fecha, self.direccion, self.expediente, self.motivo],
                                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                                        
                                     ),
+                                    self.etiqueta,
                                 ],
                                 expand=True,  # Solo la columna que contiene los Entry y etiqueta se expandirá
                             ),
@@ -239,9 +287,9 @@ class Aplicacion:
                     ),
                     # Fila con DataTable alineada a la parte superior
                     ft.Row(
-                        controls=[self.data_table],
+                        controls=[lv],
                         alignment=ft.alignment.top_left,  # Alineación superior izquierda
-                        expand=False,  # No expandir la fila
+                        expand=True,  # No expandir la fila
                     ),
                 ],
                 expand=True,  # Expande el contenedor principal
@@ -256,6 +304,7 @@ class Aplicacion:
         )
         self.contenido_principal.content = layout
         self.ventana2.update()
+        self.obtener_registros_mysql()
     def agregar_campos(self, e):
         valor_fecha = self.fecha_seleccionada
         valor_direccion = self.direccion.value
@@ -265,6 +314,7 @@ class Aplicacion:
         
         nueva_fila = ft.DataRow(
             cells=[
+                ft.DataCell(ft.Checkbox()),
                 ft.DataCell(ft.Text(valor_fecha)),
                 ft.DataCell(ft.Text(valor_direccion)),
                 ft.DataCell(ft.Text(valor_expediente)),
@@ -274,6 +324,11 @@ class Aplicacion:
         )
         self.data_table.rows.append(nueva_fila)
         self.data_table.update()
+        self.conectar_db()
+        self.cursor.execute("INSERT INTO consultas (FECHA, DIRECCION, EXPEDIENTE, MOTIVO, ETIQUETA) VALUES (%s, %s, %s, %s, %s)", (valor_fecha, valor_direccion, valor_expediente, valor_motivo, valor_etiqueta))
+        self.cnx.commit()
+        self.cursor.close()
+        self.cnx.close()
         self.direccion.value = ""
         self.expediente.value = ""
         self.motivo.value = ""
