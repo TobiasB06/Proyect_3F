@@ -5,9 +5,7 @@ class Aplicacion:
     def __init__(self, ventana2: ft.Page):
         self.ventana2 = ventana2
         self.fecha_seleccionada = None
-        self.ventana2.title = "Bienvenida"
-        self.ventana2.window.width = 400
-        self.ventana2.window.height = 600  
+        self.ventana2.title = "Menu"
         self.ventana2.window.maximized = True 
         self.ventana2.bgcolor = "#323d6b"
         self.ventana2.spacing = 0  
@@ -74,7 +72,7 @@ class Aplicacion:
             padding=20,
             border_radius=10,
             expand=True,
-            content=ft.Text("Contenido principal aquí", color=ft.colors.WHITE),
+            
         )
     
     def crear_layout(self):
@@ -92,8 +90,15 @@ class Aplicacion:
     def mostrar_menu(self, e):
         self.contenido_principal.content = ft.Text("Bienvenido al menú", color=ft.colors.WHITE)
         self.ventana2.update()
-    def handle_change(self,e):
+    def handle_change(self,e,mostrar_datos):
         self.fecha_seleccionada = e.control.value.strftime('%Y-%m-%d')
+        if mostrar_datos:
+            self.opcion_fecha.options=[
+                ft.dropdown.Option(f"Despues del {self.fecha_seleccionada} "),
+                ft.dropdown.Option(f"Antes del {self.fecha_seleccionada}"),
+                ft.dropdown.Option(f"El {self.fecha_seleccionada}")
+            ]
+            self.opcion_fecha.update()
     def conectar_db(self):
         try:
             # Establecer conexión con la base de datos MySQL
@@ -117,6 +122,39 @@ class Aplicacion:
                 self.cnx.close()
             except mysql.connector.Error as e:
                 print(f"Error al obtener los registros: {e}")
+    def eliminar_filas_seleccionadas(self, e):
+        filas_a_eliminar = []
+        ids_a_eliminar = []
+
+        # Verificar qué filas tienen el CheckBox seleccionado
+        for row in self.data_table.rows:
+            checkbox = row.cells[0].content
+            if checkbox.value:  # Si el CheckBox está seleccionado
+                filas_a_eliminar.append(row)
+                ids_a_eliminar.append(row.cells[3].content.value)  # Usar expediente o ID como referencia
+
+        # Eliminar las filas de la tabla visual
+        for fila in filas_a_eliminar:
+            self.data_table.rows.remove(fila)
+
+        self.data_table.update()
+
+        # Eliminar los registros de la base de datos
+        print(ids_a_eliminar)
+        if ids_a_eliminar:
+            self.conectar_db()
+            try:
+                # Usar una consulta SQL para eliminar varios registros
+                query = "DELETE FROM consultas WHERE EXPEDIENTE IN (%s)" % (
+                    ",".join(["%s"] * len(ids_a_eliminar))
+                )
+                self.cursor.execute(query, ids_a_eliminar)
+                self.cnx.commit()
+            except mysql.connector.Error as e:
+                print(f"Error al eliminar registros: {e}")
+            finally:
+                self.cursor.close()
+                self.cnx.close()
     def agregar_filas_a_tabla(self,data_table, registros):
         for registro in registros:
             # Asegúrate de que cada registro tenga el formato correcto
@@ -134,12 +172,19 @@ class Aplicacion:
         data_table.update()  # Actualizar la tabla
     def mostrar_carga(self, e):
         self.fecha = ft.ElevatedButton(
-            "Elegir Fecha",
-            icon=ft.icons.CALENDAR_MONTH,
+            "Elegir fecha",
+            icon=ft.icons.DATE_RANGE,
+            bgcolor=ft.colors.ORANGE_600,
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=5),
+            ),
+            color="#323d6b",
+            width=250,
+            height=50,
             on_click=lambda e: self.ventana2.open(
                 ft.DatePicker(
                     first_date=datetime.datetime(year=2000, month=10, day=1),
-                    on_change=self.handle_change,
+                    on_change=lambda e:self.handle_change(e,False),
                 )
             ),
         )
@@ -148,7 +193,7 @@ class Aplicacion:
         self.motivo = ft.TextField(label="Motivo", width=210, bgcolor=ft.colors.ORANGE,color=ft.colors.WHITE)
         
         self.etiqueta = ft.Dropdown(
-            label="# Etiqueta",
+            label="Etiqueta",
             height=50,
             options=[
                 ft.dropdown.Option("Consulta General"),
@@ -195,34 +240,11 @@ class Aplicacion:
                     on_click=self.agregar_campos
                 ), 
                 ft.ElevatedButton(
-                    icon=ft.icons.REFRESH,
-                    bgcolor=ft.colors.BLACK54,
-                    text="Actualizar",
-                    color=ft.colors.WHITE,
-                    height=35,
-                    width=142,
-                    style=ft.ButtonStyle(
-                        shape=ft.RoundedRectangleBorder(radius=5),  
-                        icon_size=30
-                    ),
-                ),
-                ft.ElevatedButton(
-                    icon=ft.icons.EDIT,
-                    text="Editar",
-                    bgcolor=ft.colors.BLACK54,
-                    color=ft.colors.WHITE,
-                    height=35,
-                    width=142,
-                    style=ft.ButtonStyle(
-                        shape=ft.RoundedRectangleBorder(radius=5),  
-                        icon_size=30
-                    ),
-                ),
-                ft.ElevatedButton(
                     icon=ft.icons.DELETE,
                     text="Eliminar",
                     bgcolor=ft.colors.BLACK54,
                     color=ft.colors.WHITE,
+                    on_click=self.eliminar_filas_seleccionadas,
                     height=35,
                     width=142,
                     style=ft.ButtonStyle(
@@ -237,18 +259,19 @@ class Aplicacion:
 
 
         self.data_table = ft.DataTable(
-            border=ft.border.all(1, "WHITE"),
+            border=ft.border.all(1, "BLACK"),
+            bgcolor="white",
             show_bottom_border=True,
-            border_radius=10,
-            horizontal_lines=ft.BorderSide(1, "WHITE"),
-            data_text_style=ft.TextStyle(color=ft.colors.WHITE),
+            border_radius=5,
+            data_text_style=ft.TextStyle(color=ft.colors.BLACK),
+            heading_text_style=ft.TextStyle(color=ft.colors.BLACK),
             columns=[
-                ft.DataColumn(label=ft.Text("", color=ft.colors.WHITE)),
-                ft.DataColumn(label=ft.Text("Fecha", color=ft.colors.WHITE)),
-                ft.DataColumn(label=ft.Text("Direccion", color=ft.colors.WHITE)),
-                ft.DataColumn(label=ft.Text("Expediente", color=ft.colors.WHITE)),
-                ft.DataColumn(label=ft.Text("Motivo", color=ft.colors.WHITE)),
-                ft.DataColumn(label=ft.Text("#Etiqueta", color=ft.colors.WHITE)),
+                ft.DataColumn(label=ft.Text("")),
+                ft.DataColumn(label=ft.Text("Fecha")),
+                ft.DataColumn(label=ft.Text("Direccion")),
+                ft.DataColumn(label=ft.Text("Expediente")),
+                ft.DataColumn(label=ft.Text("Motivo")),
+                ft.DataColumn(label=ft.Text("Etiqueta")),
             ],
             expand=True,  # Permite que el DataTable ocupe todo el espacio disponible
         )
@@ -257,7 +280,7 @@ class Aplicacion:
         lv = ft.ListView(
             expand=1, 
             spacing=10, 
-            padding=20, 
+            padding=5, 
         )
         lv.controls.append(self.data_table)
 
@@ -305,7 +328,64 @@ class Aplicacion:
         self.contenido_principal.content = layout
         self.ventana2.update()
         self.obtener_registros_mysql()
+    def buscar_datos(self, e):
+        expediente = self.expediente.value.strip()  # Elimina espacios adicionales
+        opcion_fecha = self.opcion_fecha.value
+        fecha = self.fecha_seleccionada
+
+        # Base de la consulta SQL
+        sql_statement = "SELECT * FROM consultas WHERE 1=1"
+        filtros = []
+
+        # Filtrar por fecha según la opción seleccionada
+        if opcion_fecha:
+            if "Despues del" in opcion_fecha:
+                filtros.append(f"FECHA > '{fecha}'")
+            elif "Antes del" in opcion_fecha:
+                filtros.append(f"FECHA < '{fecha}'")
+            elif "El" in opcion_fecha:
+                filtros.append(f"FECHA = '{fecha}'")
+
+        # Filtrar por expediente si se proporciona
+        if expediente:
+            filtros.append(f"EXPEDIENTE = '{expediente}'")
+
+        # Añadir filtros al SQL si hay alguno
+        if filtros:
+            sql_statement += " AND " + " AND ".join(filtros)
+
+        # Ejemplo de consulta final
+        print(f"Consulta generada: {sql_statement}")
+
+        # Conectar a la base de datos y ejecutar la consulta
+        self.conectar_db()
+        self.cursor.execute(sql_statement)
+        resultados = self.cursor.fetchall()
+        self.cursor.close()
+        self.cnx.close()
+
+        # Limpiar la tabla antes de mostrar los resultados
+        self.data_table.rows.clear()
+
+        # Agregar los resultados obtenidos
+        for fila in resultados:
+            nueva_fila = ft.DataRow(
+                cells=[
+                    ft.DataCell(ft.Checkbox()),
+                    ft.DataCell(ft.Text(fila[0])),  # Suponiendo que FECHA es la primera columna
+                    ft.DataCell(ft.Text(fila[1])),  # DIRECCION
+                    ft.DataCell(ft.Text(fila[2])),  # EXPEDIENTE
+                    ft.DataCell(ft.Text(fila[3])),  # MOTIVO
+                    ft.DataCell(ft.Text(fila[4])),  # ETIQUETA
+                ]
+            )
+            self.data_table.rows.append(nueva_fila)
+
+        # Refrescar la tabla para mostrar los nuevos datos
+        self.data_table.update()
+            
     def agregar_campos(self, e):
+        
         valor_fecha = self.fecha_seleccionada
         valor_direccion = self.direccion.value
         valor_expediente = self.expediente.value
@@ -334,14 +414,139 @@ class Aplicacion:
         self.motivo.value = ""
         self.etiqueta.value = ""
     def mostrar_datos(self, e):
-        self.contenido_principal.content = ft.Text("Datos", color=ft.colors.WHITE)
+        # Crear el botón para elegir la fecha
+        self.fecha_filtro = ft.ElevatedButton(
+            "Elegir fecha",
+            icon=ft.icons.DATE_RANGE,
+            bgcolor=ft.colors.ORANGE_600,
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=5),
+            ),
+            width=250,
+            height=60,
+            on_click=lambda e:self.ventana2.open(
+                ft.DatePicker(
+                    first_date=datetime.datetime(year=2000, month=10, day=1),
+                    on_change=lambda e:self.handle_change(e,True),
+                )
+            )
+        )
+        # Crear la lista de opciones
+        self.opcion_fecha=ft.Dropdown(
+            label="Elegir Momento",
+            options=[
+                ft.dropdown.Option("Seleccione una fecha"),
+            ],
+            bgcolor=ft.colors.ORANGE,
+            color=ft.colors.WHITE,
+            width=300
+        )
+        # Crear los Entry
+        self.expediente = ft.TextField(label="Expediente", width=210, bgcolor=ft.colors.ORANGE,color=ft.colors.WHITE)
+        # Crear los botones
+        botones= ft.Column(
+            controls=[
+                ft.ElevatedButton(
+                    icon=ft.icons.SEARCH,
+                    text="Buscar",
+                    bgcolor=ft.colors.BLACK54,
+                    color=ft.colors.WHITE, 
+                    icon_color=ft.colors.WHITE,
+                    height=35,
+                    width=142,
+                    style=ft.ButtonStyle(
+                        shape=ft.RoundedRectangleBorder(radius=5),
+                        icon_size=30,
+                    ),
+                    
+                    on_click=self.buscar_datos
+                ),
+                ft.ElevatedButton(
+                    icon=ft.icons.DELETE,
+                    text="Eliminar",
+                    bgcolor=ft.colors.BLACK54,
+                    color=ft.colors.WHITE,
+                    on_click=self.eliminar_filas_seleccionadas,
+                    height=35,
+                    width=142,
+                    style=ft.ButtonStyle(
+                        shape=ft.RoundedRectangleBorder(radius=5),  
+                        icon_size=30
+                    ),
+                )
+            ]
+        )
+        # Crea la tabla
+        self.data_table = ft.DataTable(
+            border=ft.border.all(1, "BLACK"),
+            bgcolor="white",
+            show_bottom_border=True,
+            border_radius=5,
+            data_text_style=ft.TextStyle(color=ft.colors.BLACK),
+            heading_text_style=ft.TextStyle(color=ft.colors.BLACK),
+            horizontal_lines=ft.BorderSide(1, "WHITE"),
+            columns=[
+                ft.DataColumn(label=ft.Text("")),
+                ft.DataColumn(label=ft.Text("Fecha")),
+                ft.DataColumn(label=ft.Text("Direccion")),
+                ft.DataColumn(label=ft.Text("Expediente")),
+                ft.DataColumn(label=ft.Text("Motivo")),
+                ft.DataColumn(label=ft.Text("Etiqueta")),
+            ],
+            expand=True,  # Permite que el DataTable ocupe todo el espacio disponible
+        )
+
+        # Crear el ListView
+        lv = ft.ListView(
+            expand=1, 
+            spacing=10, 
+        )
+        lv.controls.append(self.data_table)
+
+        # Crear el contenido principal de mostrar datos
+        contenido_mostrar_datos=ft.Container(
+            bgcolor="#323d6b",
+            expand=True,
+            content=ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            ft.Column(
+                                controls=[
+                                    ft.Row(
+                                        controls=[self.fecha_filtro,self.opcion_fecha, self.expediente,],
+                                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                    ),
+                                ],
+                                expand=True,  # Solo la columna que contiene los Entry y etiqueta se expandirse
+                            ),
+                            ft.Container(
+                                content=botones,
+                                alignment=ft.alignment.top_right,
+                                margin=ft.margin.only(left=20),
+                            ),
+                        ],
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    ),
+                    ft.Row(
+                        controls=[lv],
+                    )
+                ],
+                expand=True,
+            )
+        )
+        layout=ft.Row(
+            controls=[
+                contenido_mostrar_datos,
+            ],
+            expand=True,
+        )
+        self.contenido_principal.content = layout
         self.ventana2.update()
+        self.obtener_registros_mysql()
 
     def mostrar_cerrar_sesion(self, e):
-        self.contenido_principal.content = ft.Text("Cerrar Sesion", color=ft.colors.WHITE)
-        self.ventana2.update()
+        from loginconflet import main as main_login_flet
+        self.ventana2.clean()
+        main_login_flet(self.ventana2)
 
-def main(ventana2: ft.Page):
-    app = Aplicacion(ventana2)
-
-ft.app(target=main)
